@@ -1,0 +1,114 @@
+﻿@page "/"
+<PageTitle>Index</PageTitle>
+
+<EditForm Model=@book>
+    <div class="form-group">
+        <label for="Name">Name</label>
+        <InputText @bind-Value=book.Name class="form-control" id="Name" />
+    </div>
+
+    <div class="form-group">
+        <label for="Author">Author</label>
+        <InputText @bind-Value=book.Author class="form-control" id="Author" />
+    </div>
+
+    <div class="form-group">
+        <label for="PartitionKey">Price</label>
+        <InputNumber @bind-Value=book.Price class="form-control" id="PartitionKey" />
+    </div>
+  
+    <button class="btn btn-primary" @onclick="@( async ()=> await SaveBooks())">Save</button>
+    <button class="btn btn-danger" @onclick="@( ()=> book = new() )">Cancel</button>
+</EditForm>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Id</th>
+            <th>Auther</th>
+            <th>Price</th>   
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (Book book in books ?? new())
+        {
+            <tr>
+                <td>@book.Name</td>
+                <td>@book.Id</td>
+                <td>@book.Author</td>
+                <td>@book.Price</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code{
+    
+    [Inject] protected HttpClient _httpClient { get; set; }
+    [Inject] public NavigationManager _navigationManager { get; set; }
+
+    Book book = new();
+    List<Book>? books;
+    protected override async Task OnInitializedAsync()
+    {
+        if (_httpClient is null)
+            throw new Exception($"{nameof(_httpClient)} was found null");
+
+        //books = await _httpClient.GetFromJsonAsync<List<Book>>("api/books");
+    }
+
+    private async Task SaveBooks()
+    {
+        if (_httpClient is null)
+            throw new Exception($"{nameof(_httpClient)} was found null");
+        book.Id = Guid.NewGuid(); 
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync<Book>("api/books", book);
+        string responseString = await response.Content.ReadAsStringAsync();
+        Book? createdBook = JsonConvert.DeserializeObject<Book>(responseString);
+        if (createdBook is null)
+            throw new Exception($"Created Book {nameof(createdBook)} was found null");
+
+        books?.Add(createdBook);
+        book = new();
+    }
+    
+    protected async Task EditBooks()
+    {
+        if (_httpClient is null)
+            throw new Exception($"{nameof(_httpClient)} was found null");
+
+        HttpResponseMessage response = await _httpClient.PutAsJsonAsync($"api/books", book);
+        string responseString = await response.Content.ReadAsStringAsync();
+        Book? updatedBook = JsonConvert.DeserializeObject<Book>(responseString);
+
+        if (updatedBook is null)
+            throw new Exception($"Updated Book {nameof(updatedBook)} was found null");
+        if (books is null)
+            throw new Exception($"{nameof(books)} was found null");
+
+        int updatedBookIndex = books.IndexOf(updatedBook);
+        books[updatedBookIndex] = updatedBook;
+        book = new();
+    }
+
+    protected async Task DeleteBook(Guid? id)
+    {
+        if (_httpClient is null)
+            throw new Exception($"{nameof(_httpClient)} was found null");
+
+        if (id is null || id == Guid.Empty)
+            throw new Exception($"{nameof(id)} was found null or empty Guid");
+
+        HttpResponseMessage response = await _httpClient.DeleteAsync($"api/books/{id}");
+        string responseString = await response.Content.ReadAsStringAsync();
+        Book? deletedBook = JsonConvert.DeserializeObject<Book>(responseString);
+        if (deletedBook is null)
+            throw new Exception($"Deleted Book {nameof(deletedBook)} was found null");
+        if (books is null)
+            throw new Exception($"{nameof(books)} was found null");
+
+        int deletedBookIndex = books.IndexOf(deletedBook);
+        books.RemoveAt(deletedBookIndex);
+    }
+}
